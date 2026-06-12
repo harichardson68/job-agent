@@ -1,0 +1,10 @@
+# Job-Agent dependencies
+# Install: python -m pip install -r requirements.txt
+
+anthropic>=0.40.0        # Claude API (cleaner than raw requests for the agent)
+requests>=2.31.0         # HTTP for job sources / web search / board fetches
+python-dotenv>=1.0.0     # load .env (API keys)
+
+# Reused from job_search.py ecosystem (add only what the agent actually uses):
+# feedparser>=6.0.0      # if you parse RSS-style feeds
+# beautifulsoup4>=4.12.0 # if you parse HTML from board fetches

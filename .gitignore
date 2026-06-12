@@ -1,0 +1,41 @@
+# Environment / secrets
+.env
+*.env
+.env.*
+
+# Python
+__pycache__/
+*.py[cod]
+*$py.class
+*.so
+.Python
+venv/
+env/
+.venv/
+ENV/
+
+# Logs (keep folder, ignore contents)
+logs/*
+!logs/.gitkeep
+
+# Run output
+*.log
+output/
+results/
+*.json.bak
+
+# IDE
+.vscode/
+.idea/
+*.swp
+.DS_Store
+
+# OS
+Thumbs.db
+desktop.ini
+.claude/
+cl_debug.txt
+last_run.json
+.claude/
+cl_debug.txt
+last_run.json
