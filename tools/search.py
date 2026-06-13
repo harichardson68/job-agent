@@ -68,7 +68,8 @@ ONSITE_SIGNALS = ["on-site", "onsite", "on site", "in-office", "in office"]
 _EXPIRED_RE = re.compile(
     r'no longer available|job has expired|listing has expired|'
     r'position has been filled|this job is no longer|'
-    r'job is closed|posting has been removed|posting is no longer',
+    r'job is closed|posting has been removed|posting is no longer|'
+    r'sorry this job is no longer|similar jobs shown below',
     re.I,
 )
 
@@ -312,6 +313,30 @@ def _scrub(s: str) -> str:
     return s
 
 
+_VERIFY_HEADERS = {"User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36"}
+
+def _job_still_active(url: str) -> bool:
+    """
+    Return False if the job URL is definitively gone (HTTP 410).
+    Only checks Dice URLs — other boards don't reliably return 410.
+    On any error or timeout, returns True (benefit of the doubt).
+    """
+    if "dice.com" not in url:
+        return True
+    try:
+        resp = requests.head(url, headers=_VERIFY_HEADERS, timeout=5, allow_redirects=True)
+        if resp.status_code == 410:
+            return False
+        # Some servers don't support HEAD — fall back to GET with streaming
+        if resp.status_code == 405:
+            resp = requests.get(url, headers=_VERIFY_HEADERS, timeout=5, stream=True)
+            resp.close()
+            return resp.status_code != 410
+    except Exception:
+        pass
+    return True
+
+
 def _parse_serper_job(item: dict) -> dict | None:
     """
     Convert one Serper organic result into a job dict.
@@ -430,6 +455,9 @@ def search_serper(query: str = "", num: int = 20,
         for item in items:
             job = _parse_serper_job(item)
             if job is None:
+                continue
+
+            if not _job_still_active(job["url"]):
                 continue
 
             if location_filter:
