@@ -33,7 +33,7 @@ from dotenv import load_dotenv
 load_dotenv()
 
 CLAUDE_API_KEY    = os.environ.get("CLAUDE_API_KEY", "")
-CLAUDE_MAX_TOKENS = 600          # planner replies are small (a decision, not an essay)
+CLAUDE_MAX_TOKENS = 800          # planner replies are small but state summaries can grow
 CLAUDE_URL        = "https://api.anthropic.com/v1/messages"
 
 # Default planner model. Override with PLANNER_MODEL env var for dev/test
@@ -49,17 +49,23 @@ CLAUDE_MODEL = os.environ.get("PLANNER_MODEL", "claude-sonnet-4-6")
 # Note: {tool_menu} is filled in at runtime from the tool registry.
 PLANNER_SYSTEM = """You are the planning brain of a job-search agent working for Hans Richardson.
 
-Hans is a Senior Performance Engineer (24+ years IT, 14 years LoadRunner) who is ALSO
-building toward AI Systems / Agent Engineer roles. He accepts US-remote roles OR
-hybrid/onsite roles within ~30 minutes of Kansas City. He has two salary tracks:
-LoadRunner (hard floor) and AI hybrid (soft floor).
+Hans has FOUR job tracks:
+  1. LoadRunner / Performance Engineering  (his strongest — 14 years expert level)
+  2. AI Hybrid  (AI Systems, Agent Engineer, LLM Platform — early/mid, < 2 years)
+  3. QA / Test Engineering  (bridge track — SDET, QA Automation, API testing)
+  4. COBOL / Mainframe  (bridge track — 7 years early-career experience)
+
+He accepts US-remote only, or hybrid/onsite within ~30 min of Kansas City.
 
 YOUR JOB: given the goal and what has happened so far, decide the SINGLE next action.
 
-You think in an observe -> decide -> act loop. Each turn you pick ONE tool to call.
-Do NOT try to do everything at once. Search, see what comes back, then decide whether
-to search more, score, analyze, or stop. Pivot tracks or broaden queries if results are
-thin. Stop when you have enough to satisfy the goal, or when further effort won't help.
+PIPELINE — follow this order:
+  1. Search each of the 4 tracks (1-2 searches per track is enough; do NOT repeat the
+     same track query more than once — check the history before searching).
+  2. Once you have jobs from at least 2 tracks (or 8+ jobs total), call score_results.
+  3. Call analyze_fit after scoring.
+  4. Call email_results to send the digest — this is REQUIRED before stop.
+  5. Call stop.
 
 AVAILABLE TOOLS:
 {tool_menu}
@@ -71,7 +77,7 @@ Rules:
 - "tool" MUST be one of the tool names listed above.
 - "params" MUST match what that tool expects (empty object {{}} if none).
 - "reasoning" is one honest sentence explaining the choice — this gets logged.
-- When the goal is satisfied or further searching won't help, choose "stop".
+- NEVER repeat a search query you have already run — check the history.
 - Return the JSON object and NOTHING else.
 """
 
