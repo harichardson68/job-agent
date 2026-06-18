@@ -83,11 +83,16 @@ Rules:
 
 
 def _strip_fences(text: str) -> str:
-    """Defensive: remove ```json ... ``` if the model adds them anyway."""
+    """Strip markdown fences and any leading prose before the JSON object."""
     t = text.strip()
     if t.startswith("```"):
         t = t.split("\n", 1)[-1] if "\n" in t else t
         t = t.replace("```json", "").replace("```", "").strip()
+    # Model sometimes adds a sentence before the JSON — find the first {
+    if not t.startswith("{"):
+        idx = t.find("{")
+        if idx != -1:
+            t = t[idx:]
     return t
 
 
