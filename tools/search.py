@@ -131,6 +131,12 @@ def classify_location(title: str, desc: str, location: str = "") -> dict:
     if loc and not _AMBIGUOUS_LOC.match(loc):
         loc_is_remote = any(s in loc for s in REMOTE_SIGNALS)
         if loc_is_remote:
+            # "Remote in Olympia, WA" or "Remote in [City, State]" means
+            # geographically restricted — not nationally available remote.
+            # Detect: "remote" present AND a comma suggesting City, State.
+            if "," in loc:
+                return {"verdict": "reject", "keep": False,
+                        "note": f"Location-restricted remote ({location.strip()[:40]}) — not US-wide."}
             is_foreign = any(s in f"{body} {loc}" for s in NON_US_SIGNALS)
             if not is_foreign:
                 return {"verdict": "remote_us", "keep": True, "note": "US remote."}

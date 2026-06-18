@@ -31,7 +31,7 @@ CLAUDE_URL            = "https://api.anthropic.com/v1/messages"
 _CAREER_TRACKS = {"LoadRunner / Performance", "AI Hybrid"}
 
 # Max jobs to generate letters for (cost control)
-COVER_LETTER_MAX = 7
+COVER_LETTER_MAX = 10
 
 # ──────────────────────────────────────────────────────────────
 # BASE TEMPLATES

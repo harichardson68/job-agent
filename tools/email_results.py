@@ -59,6 +59,12 @@ def _job_card(index: int, job: dict, accent_color: str = "#1F3864") -> str:
     reason   = job.get("fit_reason", "")
     gap      = job.get("fit_gap")
     sal_note = job.get("salary_note", "")
+    snippet  = (job.get("description") or "")[:300].strip()
+
+    snippet_html = ""
+    if snippet:
+        snippet_html = (f'<p style="margin:6px 0 8px;font-size:12px;color:#555;'
+                        f'line-height:1.5;font-style:italic;">{snippet}…</p>')
 
     tier_html = ""
     if tier:
@@ -73,6 +79,11 @@ margin:8px 0 12px;border-radius:0 4px 4px 0;">
   </p>
   <p style="margin:0;font-size:13px;color:#444;line-height:1.4;">{reason}</p>
 </div>"""
+    else:
+        tier_html = ('<div style="background:#f5f5f5;border-left:3px solid #bbb;'
+                     'padding:8px 14px;margin:8px 0 12px;border-radius:0 4px 4px 0;">'
+                     '<p style="margin:0;font-size:12px;color:#888;">Fit analysis not run for this job.</p>'
+                     '</div>')
 
     apply_btn = ""
     if url:
@@ -113,6 +124,7 @@ margin:8px 0 12px;border-radius:0 4px 4px 0;">
   <p style="margin:4px 0;font-size:12px;color:#555;">
     <strong>Keywords:</strong> {keywords}
   </p>
+  {snippet_html}
   {tier_html}
   {apply_btn}
   {cover_html}
@@ -141,8 +153,8 @@ padding:16px;margin:16px 0;">
   <p style="margin:8px 0 0;color:#555;">Try a different goal or broaden the search query.</p>
 </div>"""
     else:
-        career_jobs = [j for j in jobs if j.get("track", "") in _CAREER_TRACKS]
-        bridge_jobs = [j for j in jobs if j.get("track", "") not in _CAREER_TRACKS]
+        career_jobs = [j for j in jobs if j.get("track", "") in _CAREER_TRACKS][:10]
+        bridge_jobs = [j for j in jobs if j.get("track", "") not in _CAREER_TRACKS][:10]
 
         html += "<hr/>"
         if career_jobs:
@@ -237,10 +249,13 @@ def email_results(state=None) -> dict:
     if not any(j.get("fit_tier") for j in state.jobs):
         analyze_fit(state)
 
-    # Drop Weak-tier and hard-dropped jobs before emailing
+    # Drop Weak-tier, hard-dropped, and untracked jobs before emailing
+    _VALID_TRACKS = {"LoadRunner / Performance", "AI Hybrid",
+                     "QA / Test Engineering", "COBOL / Mainframe"}
     sendable = [j for j in state.jobs
                 if j.get("fit_tier", "") != "Weak"
-                and j.get("score", 0) > -100]
+                and j.get("score", 0) > -100
+                and j.get("track", "") in _VALID_TRACKS]
 
     generate_cover_letters(state)
 

@@ -26,8 +26,8 @@ CLAUDE_URL = "https://api.anthropic.com/v1/messages"
 CAREER_TRACKS = {"LoadRunner / Performance", "AI Hybrid"}
 BRIDGE_TRACKS  = {"QA / Test Engineering", "COBOL / Mainframe"}
 
-TOP_N_CAREER = 7   # career jobs to analyze per run
-TOP_N_BRIDGE = 5   # bridge jobs to analyze per run
+TOP_N_CAREER = 10   # career jobs to analyze per run
+TOP_N_BRIDGE = 10   # bridge jobs to analyze per run
 
 _SYSTEM = """You evaluate job fit for Hans Richardson, a Senior Performance Engineer pivoting to AI.
 
