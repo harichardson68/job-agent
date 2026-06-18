@@ -132,16 +132,11 @@ def classify_location(title: str, desc: str, location: str = "") -> dict:
         loc_is_remote = any(s in loc for s in REMOTE_SIGNALS)
         if loc_is_remote:
             # "Remote in Olympia, WA" = geographically restricted.
-            # BUT "Remote, United States" is fine — only reject when the
-            # part after the comma is a city/state, not a country name.
-            _COUNTRY_TERMS = {"united states", "us", "usa", "u.s.", "u.s.a.",
-                              "america", "nationwide", "north america",
-                              "united states of america"}
-            if "," in loc:
-                after_comma = loc.split(",", 1)[1].strip().rstrip(".")
-                if after_comma not in _COUNTRY_TERMS:
-                    return {"verdict": "reject", "keep": False,
-                            "note": f"Location-restricted remote ({location.strip()[:40]}) — not US-wide."}
+            # "Remote, TX" = genuinely remote, state is the employer's address.
+            # Only reject when "remote in" precedes a city/state (comma present).
+            if "remote in" in loc and "," in loc:
+                return {"verdict": "reject", "keep": False,
+                        "note": f"Location-restricted remote ({location.strip()[:40]}) — not US-wide."}
             is_foreign = any(s in f"{body} {loc}" for s in NON_US_SIGNALS)
             if not is_foreign:
                 return {"verdict": "remote_us", "keep": True, "note": "US remote."}
