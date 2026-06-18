@@ -6,6 +6,12 @@ move, acts, and observes the result, looping until it decides it has enough.
 The result is a system that *adapts its strategy mid-run* instead of marching
 through hardcoded steps.
 
+## 🎬 Live Demo
+
+[![Watch the Demo](https://img.shields.io/badge/Watch-Loom%20Demo-orange?logo=loom)](https://www.loom.com/share/8a5bf691b79b4d9abb7379b2e0b771c3)
+
+> End-to-end walkthrough of the agentic loop — observe, plan, act cycle with live tool calls, decision traces, and real output.
+
 Built by a performance engineer bringing reliability, observability, and
 evaluation discipline to a domain that needs it: non-deterministic AI systems.
 
