@@ -190,6 +190,10 @@ def _build_report(state: AgentState) -> str:
 # CLI ENTRY
 # ------------------------------------------------------------
 if __name__ == "__main__":
-    default_goal = "Find LoadRunner and AI hybrid roles, remote or KC metro, above my floor."
+    default_goal = ("Find me strong remote US matches across all four of my tracks: "
+                    "1) LoadRunner / Performance Engineering  2) AI Hybrid (AI Systems, Agent Engineer, LLM Platform)  "
+                    "3) QA / Test Engineering (SDET, QA Automation, API testing, manual QA)  "
+                    "4) COBOL / Mainframe (if any postings exist). "
+                    "Remote only, no hybrid or onsite. Contract or full-time.")
     goal = " ".join(sys.argv[1:]) if len(sys.argv) > 1 else default_goal
     run_agent(goal)
