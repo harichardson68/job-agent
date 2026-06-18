@@ -212,17 +212,30 @@ def send_digest(jobs: list, goal: str = "", run_note: str = "") -> dict:
 
 def email_results(state=None) -> dict:
     """
-    Agent tool entry point. Generates cover letters then sends the HTML digest.
+    Agent tool entry point. Runs score → analyze → cover letters → email.
+    Self-healing: if jobs arrive unscored (planner skipped steps), scores and
+    analyzes them here before sending so the digest is always complete.
     """
     if state is None or not getattr(state, "jobs", None):
         return {"ok": False, "tool": "email_results",
                 "note": "No jobs to email — run search and score first."}
 
-    # Generate cover letters before building the email
     try:
+        from tools.score import score_results
+        from tools.analyze_fit import analyze_fit
         from tools.cover_letter import generate_cover_letters
     except ImportError:
+        from score import score_results
+        from analyze_fit import analyze_fit
         from cover_letter import generate_cover_letters
+
+    # Auto-score if the planner skipped it (all scores are 0 or missing)
+    if all(j.get("score", 0) == 0 for j in state.jobs):
+        score_results(state)
+
+    # Auto-analyze if fit tiers are absent
+    if not any(j.get("fit_tier") for j in state.jobs):
+        analyze_fit(state)
 
     generate_cover_letters(state)
 
