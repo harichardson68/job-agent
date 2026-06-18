@@ -36,7 +36,9 @@ Hans's profile:
 - AI & automation: Claude API (production), multi-agent systems (built Agent Hub + job search platform),
   prompt engineering (IBM cert + bootcamp), Python (real production scripts)
 - Trained (coursework, not production years): JMeter, NeoLoad, Selenium, LangChain
-- Early career: COBOL/CICS programmer 7 years; PeopleSoft admin; mainframe
+- QA / Testing: broad QA background through performance testing — test planning, test case design,
+  defect management, API testing (REST/SOAP), Postman, functional and regression testing
+- Early career: COBOL/CICS programmer 7 years; DB2; JCL; PeopleSoft admin; mainframe
 - Clearance: Public Trust (held during USDA federal contract 2021–2025)
 - Seniority: Senior / Lead level — roles expecting < 8 years total experience are a mismatch
 - Location: Lee's Summit, MO — US remote or KC-metro hybrid/onsite only
@@ -49,6 +51,8 @@ Known gaps (flag the single most relevant one per job):
   RAG-prod      — understands RAG concepts but no production RAG system built and deployed
   vector-stores — no production experience with Pinecone, Weaviate, Chroma, or similar
   domain-gap    — role requires deep domain knowledge Hans lacks (e.g. Guidewire, Salesforce, finance)
+  selenium-prod — trained on Selenium but no multi-year production automation framework history
+  cobol-vintage — COBOL experience is 15+ years old; modern mainframe tooling may differ
 
 DO NOT flag SAP, Kubernetes, AppDynamics, Splunk, REST APIs, or COBOL as gaps — Hans has real
 experience in all of these.

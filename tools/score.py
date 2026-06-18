@@ -58,7 +58,23 @@ PERF_BONUS = [
     "appdynamics", "dynatrace", "splunk", "grafana", "prometheus",
     "new relic", "datadog", "observability", "jmeter", "neoload",
 ]
-COBOL_KW = ["cobol", "cics", "mainframe"]
+COBOL_KW = ["cobol", "cics", "mainframe", "db2", "jcl", "vsam", "natural", "adabas"]
+
+# QA / Test Engineering track — broad net for bridge roles while Hans searches.
+QA_TITLE_PRIORITY = [
+    "sdet", "qa engineer", "qe engineer", "quality engineer",
+    "test engineer", "software tester", "automation engineer",
+]
+QA_HIGH = [
+    "quality assurance", "test automation", "manual testing",
+    "functional testing", "regression testing", "selenium",
+    "cypress", "playwright", "postman", "api testing",
+    "test cases", "test plans", "defect management", "jira",
+]
+QA_BONUS = [
+    "testng", "junit", "pytest", "rest assured", "appium",
+    "cucumber", "bdd", "tdd", "zephyr", "testrail",
+]
 
 # Hard-drop title signals — these never clear Hans's bar regardless of keywords.
 JUNIOR_TITLE = ["junior", "intern", "entry level", "entry-level"]
@@ -305,10 +321,26 @@ def _score_one(title: str, desc: str) -> tuple[int, list, str]:
         if kw in text and kw not in matched:
             score += 3
             matched.append(kw)
-    # COBOL body
+    # QA title priority
+    for kw in QA_TITLE_PRIORITY:
+        if kw in t and kw not in matched:
+            score += 20
+            matched.append(f"QA-title:{kw}")
+            break
+    # QA high-value body keywords
+    for kw in QA_HIGH:
+        if kw in text and kw not in matched:
+            score += 15
+            matched.append(kw)
+    # QA bonus stack
+    for kw in QA_BONUS:
+        if kw in text and kw not in matched:
+            score += 5
+            matched.append(kw)
+    # COBOL — rare skill, score meaningfully
     for kw in COBOL_KW:
         if kw in text and kw not in matched:
-            score += 2
+            score += 20
             matched.append(kw)
 
     # Hard drops — return -200 immediately, no further scoring
@@ -327,13 +359,15 @@ def _score_one(title: str, desc: str) -> tuple[int, list, str]:
         score -= 30
         matched.append("ai-proven-track-penalty")
 
-    # Track label for display
+    # Track label for display — order matters (most specific first)
     if any(kw in text for kw in LOADRUNNER_PRIORITY) or any(kw in text for kw in PERF_HIGH):
         track = "LoadRunner / Performance"
     elif any(kw in text for kw in AI_HIGH) or any(kw in t for kw in AI_TITLE_PRIORITY):
         track = "AI Hybrid"
     elif any(kw in text for kw in COBOL_KW):
-        track = "COBOL"
+        track = "COBOL / Mainframe"
+    elif any(kw in t for kw in QA_TITLE_PRIORITY) or any(kw in text for kw in QA_HIGH):
+        track = "QA / Test Engineering"
     else:
         track = "Other"
 
@@ -398,7 +432,14 @@ def score_results(state=None, min_score: int = 1) -> dict:
         desc_text = job.get("description", "")
         contract_hr, base_annual = _parse_salary(desc_text)
         if evaluate_salary:
-            track_key = "loadrunner" if "LoadRunner" in track or "Performance" in track else "ai_hybrid"
+            if "LoadRunner" in track or "Performance" in track:
+                track_key = "loadrunner"
+            elif "COBOL" in track:
+                track_key = "cobol"
+            elif "QA" in track:
+                track_key = "qa_testing"
+            else:
+                track_key = "ai_hybrid"
             sal = evaluate_salary(track_key, base_annual=base_annual, contract_hr=contract_hr)
             job["salary_note"] = sal["note"]
             if sal.get("hard") and sal.get("verdict") == "below_floor":

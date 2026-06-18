@@ -13,13 +13,18 @@
 # TIER 1 — DAILY DRIVERS (the ones you'll actually use most)
 # ------------------------------------------------------------
 
-GOAL_01 = """Find me 5 strong LoadRunner or performance engineering matches today,
-remote only, rate or salary above my floor. If you can't find 5 that clear the bar,
-broaden the search and tell me exactly what you had to relax to get there."""
+GOAL_01 = """Find me strong remote US matches across all four of my tracks today:
+1) LoadRunner / Performance Engineering
+2) AI Hybrid (AI Systems, Agent Engineer, LLM Platform)
+3) QA / Test Engineering (SDET, QA Automation, API testing, manual QA)
+4) COBOL / Mainframe (if any postings exist)
+Remote only, no hybrid or onsite. Contract or full-time. Score and rank everything —
+if results are thin on any track, broaden the search and tell me what you relaxed."""
 
 GOAL_02 = """Search LoadRunner and performance roles first. If results are thin,
-pivot to AI hybrid roles (performance + AI, AI Systems, Agent Engineer) and tell me
-why you switched and what you found in each track."""
+pivot to AI hybrid roles (performance + AI, AI Systems, Agent Engineer), then
+QA/Test Engineering, then COBOL. Tell me why you switched tracks and what you
+found in each."""
 
 GOAL_03 = """Find the single best match for me today across both my tracks and
 justify why it beats every other option you looked at. Flag any gap I'd need to

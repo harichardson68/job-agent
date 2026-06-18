@@ -24,6 +24,18 @@ SALARY_FLOORS = {
         "hard": False,            # below this -> keep + flag (worth considering for trajectory)
         "label": "AI Systems / Agent / Hybrid",
     },
+    "qa_testing": {
+        "base_annual": 60_000,    # full-time base, USD
+        "contract_hr": 30,        # W2 hourly — bridge track while searching
+        "hard": False,            # soft floor — remote QA at $30+ is acceptable
+        "label": "QA / Test Engineering",
+    },
+    "cobol": {
+        "base_annual": 90_000,    # COBOL skills are rare — market pays well
+        "contract_hr": 45,        # W2 hourly
+        "hard": False,            # soft floor — worth considering for rare postings
+        "label": "COBOL / Mainframe",
+    },
 }
 
 # Rough annual<->hourly bridge for comparing mixed listings.

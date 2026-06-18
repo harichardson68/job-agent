@@ -58,15 +58,41 @@ Sincerely,
 Hans Richardson
 harichardson68@gmail.com"""
 
+_QA_TEMPLATE = """Dear [Company] Hiring Team,
+
+I am writing to express my strong interest in the [Title] position. With 24+ years of IT experience spanning performance engineering, QA, and software development, I bring a broad and practical testing foundation that translates directly to quality engineering roles. [PERSONALIZED]
+
+Throughout my career I have designed and executed test strategies across enterprise platforms including SAP, AWS-based applications, and large-scale web systems. My performance engineering background (14 years LoadRunner/VuGen) means I approach QA with a deep understanding of how systems behave under load — giving me a perspective most QA engineers don't have. I am experienced with API testing (REST/SOAP), defect management, test case design, and working within Agile/Scrum teams. I also hold an active Public Trust clearance from my federal contract work at USDA.
+
+I am available for US remote work and confident I can contribute immediately to your quality engineering efforts. I would welcome the opportunity to discuss how my background aligns with your team's needs.
+
+Sincerely,
+Hans Richardson
+harichardson68@gmail.com"""
+
+_COBOL_TEMPLATE = """Dear [Company] Hiring Team,
+
+I am writing to express my strong interest in the [Title] position. With 7 years of COBOL/CICS programming experience and 24+ years in IT overall, I offer a rare combination of mainframe development depth and modern enterprise engineering skills. [PERSONALIZED]
+
+My mainframe background includes COBOL, CICS, DB2, and JCL development across large-scale business systems. I transitioned into performance and systems engineering, giving me a broad technical perspective that extends well beyond the mainframe — including AWS, Kubernetes, Python, and enterprise performance testing. I hold an active Public Trust clearance from my federal contract work at USDA, which is often valuable in the organizations that still run critical COBOL systems.
+
+I am available for US remote work and would welcome the opportunity to discuss how my background fits your mainframe needs.
+
+Sincerely,
+Hans Richardson
+harichardson68@gmail.com"""
+
 _TEMPLATE_BY_TRACK = {
     "LoadRunner / Performance": _PERF_TEMPLATE,
     "AI Hybrid":                _AI_TEMPLATE,
+    "QA / Test Engineering":    _QA_TEMPLATE,
+    "COBOL / Mainframe":        _COBOL_TEMPLATE,
 }
 
 _SYSTEM = """You are editing cover letters for Hans Richardson, a Senior Performance Engineer.
 
 The user message contains:
-1. A PERFORMANCE TEMPLATE and an AI_HYBRID TEMPLATE
+1. Four templates: PERFORMANCE, AI_HYBRID, QA_TESTING, and COBOL
 2. A numbered list of jobs — each specifies which template to use, plus title, company, and description
 
 Your ONLY job is to make three targeted edits to the indicated template for each job:
@@ -147,7 +173,14 @@ def generate_cover_letters(state=None) -> dict:
     job_lines = []
     for i, job in enumerate(eligible, 1):
         track   = job.get("track", "")
-        tmpl    = "PERFORMANCE" if "Performance" in track else "AI_HYBRID"
+        if "Performance" in track or "LoadRunner" in track:
+            tmpl = "PERFORMANCE"
+        elif "AI" in track:
+            tmpl = "AI_HYBRID"
+        elif "COBOL" in track:
+            tmpl = "COBOL"
+        else:
+            tmpl = "QA_TESTING"
         desc    = (job.get("description") or "")[:250]
         company = _clean_company(job.get("company", "") or "")
         job_lines.append(
@@ -160,6 +193,8 @@ def generate_cover_letters(state=None) -> dict:
     user_msg = (
         f"PERFORMANCE TEMPLATE:\n{_PERF_TEMPLATE}\n\n"
         f"AI_HYBRID TEMPLATE:\n{_AI_TEMPLATE}\n\n"
+        f"QA_TESTING TEMPLATE:\n{_QA_TEMPLATE}\n\n"
+        f"COBOL TEMPLATE:\n{_COBOL_TEMPLATE}\n\n"
         f"JOBS:\n" + "\n\n".join(job_lines)
     )
 
