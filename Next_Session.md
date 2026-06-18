@@ -49,7 +49,7 @@ email digest auto-send, Email Results button.
 ## NEXT UP — priority order
 ## ============================================================
 
-### 1. REMOTE EXECUTION  (runs without Hans's PC)
+### 1. REMOTE EXECUTION  (GitHub Actions — runs without Hans's PC)
 WHY: With email working, the agent can run in the cloud and reach Hans
 anywhere. run_agent() is already GUI-independent (pure Python), so the
 same core works from GUI / CLI / GitHub Action / schedule.
@@ -81,7 +81,17 @@ decisions and emails ranked results with reasoning."
     fallback to empty — correct behavior, but looks unfinished). Either
     hide the "@" when company is empty, or show "(company not listed)".
 
-### 4. FEEDBACK LOOP  (human-approved rule updates)
+### 4. HUGGING FACE DEMO  (portfolio piece — after GitHub Actions)
+  - Sanitized public Space on Hugging Face showing the agent running live
+  - DEMO_MODE flag: search tools return canned demo_jobs.json instead of live APIs
+  - email_results renders HTML to browser instead of sending
+  - Planner uses Haiku (cheap) or mocked responses
+  - Cover letters show pre-generated samples
+  - No personal data, no real API keys exposed
+  - Portfolio pitch: live demo a hiring manager can click, not just a GitHub link
+  ORDER: GitHub Actions remote run first, then Hugging Face demo Space.
+
+### 5. FEEDBACK LOOP  (human-approved rule updates)
   - Hans flags a bad result ("shouldn't have come through — reason X")
   - Agent surfaces the flag for review; Hans approves
   - Rule is written to a config file (e.g. config/user_filters.py)

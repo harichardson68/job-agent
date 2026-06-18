@@ -23,9 +23,12 @@ from dotenv import load_dotenv
 
 load_dotenv()
 
-CLAUDE_API_KEY = os.environ.get("CLAUDE_API_KEY", "")
-CLAUDE_MODEL   = "claude-sonnet-4-6"
-CLAUDE_URL     = "https://api.anthropic.com/v1/messages"
+CLAUDE_API_KEY        = os.environ.get("CLAUDE_API_KEY", "")
+CLAUDE_MODEL_CAREER   = "claude-sonnet-4-6"
+CLAUDE_MODEL_BRIDGE   = "claude-haiku-4-5-20251001"
+CLAUDE_URL            = "https://api.anthropic.com/v1/messages"
+
+_CAREER_TRACKS = {"LoadRunner / Performance", "AI Hybrid"}
 
 # Max jobs to generate letters for (cost control)
 COVER_LETTER_MAX = 7
@@ -150,28 +153,10 @@ def _eligible_jobs(jobs: list) -> list:
     return eligible[:COVER_LETTER_MAX]
 
 
-def generate_cover_letters(state=None) -> dict:
-    """
-    Agent tool. Generates lightly-personalized cover letters for the
-    top scored jobs in state.jobs. Annotates each job with a
-    'cover_letter' field. One batched Claude call for all letters.
-    """
-    if state is None or not getattr(state, "jobs", None):
-        return {"ok": True, "tool": "generate_cover_letters",
-                "note": "No jobs — cover letter generation skipped."}
-
-    if not CLAUDE_API_KEY:
-        return {"ok": False, "tool": "generate_cover_letters",
-                "note": "No CLAUDE_API_KEY — cover letters skipped."}
-
-    eligible = _eligible_jobs(state.jobs)
-    if not eligible:
-        return {"ok": True, "tool": "generate_cover_letters",
-                "note": "No eligible jobs for cover letters (all Weak or untracked)."}
-
-    # Templates sent ONCE at the top — not repeated per job
+def _build_cover_batch(jobs: list, offset: int = 0) -> str:
+    """Build the user message for a batch of jobs (templates + job list)."""
     job_lines = []
-    for i, job in enumerate(eligible, 1):
+    for i, job in enumerate(jobs, offset + 1):
         track   = job.get("track", "")
         if "Performance" in track or "LoadRunner" in track:
             tmpl = "PERFORMANCE"
@@ -189,8 +174,7 @@ def generate_cover_letters(state=None) -> dict:
             f"   Company: {company or '(unknown)'}\n"
             f"   Description: {desc}"
         )
-
-    user_msg = (
+    return (
         f"PERFORMANCE TEMPLATE:\n{_PERF_TEMPLATE}\n\n"
         f"AI_HYBRID TEMPLATE:\n{_AI_TEMPLATE}\n\n"
         f"QA_TESTING TEMPLATE:\n{_QA_TEMPLATE}\n\n"
@@ -198,53 +182,79 @@ def generate_cover_letters(state=None) -> dict:
         f"JOBS:\n" + "\n\n".join(job_lines)
     )
 
-    # Brief pause — this call follows analyze_fit; avoid back-to-back rate limits
-    time.sleep(2)
 
-    try:
-        resp = requests.post(
-            CLAUDE_URL,
-            headers={
-                "x-api-key": CLAUDE_API_KEY,
-                "anthropic-version": "2023-06-01",
-                "content-type": "application/json",
-            },
-            json={
-                "model": CLAUDE_MODEL,
-                "max_tokens": 6000,
-                "system": _SYSTEM,
-                "messages": [{"role": "user", "content": user_msg}],
-            },
-            timeout=90,
-        )
+def _call_cover(user_msg: str, model: str) -> list:
+    resp = requests.post(
+        CLAUDE_URL,
+        headers={
+            "x-api-key": CLAUDE_API_KEY,
+            "anthropic-version": "2023-06-01",
+            "content-type": "application/json",
+        },
+        json={
+            "model": model,
+            "max_tokens": 6000,
+            "system": _SYSTEM,
+            "messages": [{"role": "user", "content": user_msg}],
+        },
+        timeout=90,
+    )
+    if resp.status_code != 200:
+        err = resp.json().get("error", {}).get("message", resp.text[:120])
+        raise RuntimeError(f"API error {resp.status_code}: {err}")
+    raw = resp.json()["content"][0]["text"]
+    return json.loads(_strip_fences(raw))
 
-        if resp.status_code != 200:
-            err = resp.json().get("error", {}).get("message", resp.text[:120])
-            return {"ok": False, "tool": "generate_cover_letters",
-                    "note": f"API error {resp.status_code}: {err} — cover letters skipped."}
 
-        raw     = resp.json()["content"][0]["text"]
-        letters = json.loads(_strip_fences(raw))
+def generate_cover_letters(state=None) -> dict:
+    """
+    Generates cover letters for eligible jobs. Career tracks use Sonnet,
+    bridge tracks use Haiku. Two batched calls, one per tier.
+    Annotates each job with a 'cover_letter' field.
+    """
+    if state is None or not getattr(state, "jobs", None):
+        return {"ok": True, "tool": "generate_cover_letters",
+                "note": "No jobs — cover letter generation skipped."}
 
-        if not isinstance(letters, list):
-            return {"ok": False, "tool": "generate_cover_letters",
-                    "note": "Unexpected response shape — cover letters skipped."}
-
-        # Annotate jobs in-place
-        for item in letters:
-            idx = int(item.get("index", 0)) - 1
-            if 0 <= idx < len(eligible):
-                eligible[idx]["cover_letter"] = item.get("cover_letter", "")
-
-        note = f"Cover letters generated for {len(letters)} job(s)."
-        return {"ok": True, "tool": "generate_cover_letters", "note": note}
-
-    except json.JSONDecodeError as e:
+    if not CLAUDE_API_KEY:
         return {"ok": False, "tool": "generate_cover_letters",
-                "note": f"JSON parse error: {e} — cover letters skipped."}
-    except Exception as exc:
-        return {"ok": False, "tool": "generate_cover_letters",
-                "note": f"Cover letter error: {exc} — skipped."}
+                "note": "No CLAUDE_API_KEY — cover letters skipped."}
+
+    eligible = _eligible_jobs(state.jobs)
+    if not eligible:
+        return {"ok": True, "tool": "generate_cover_letters",
+                "note": "No eligible jobs for cover letters (all Weak or untracked)."}
+
+    career = [j for j in eligible if j.get("track", "") in _CAREER_TRACKS]
+    bridge = [j for j in eligible if j.get("track", "") not in _CAREER_TRACKS]
+
+    total = 0
+    errors = []
+
+    time.sleep(2)  # rate limit buffer after analyze_fit
+
+    for pool, model, label in [
+        (career, CLAUDE_MODEL_CAREER, "career"),
+        (bridge, CLAUDE_MODEL_BRIDGE, "bridge"),
+    ]:
+        if not pool:
+            continue
+        try:
+            letters = _call_cover(_build_cover_batch(pool), model)
+            for item in letters:
+                idx = int(item.get("index", 0)) - 1
+                if 0 <= idx < len(pool):
+                    pool[idx]["cover_letter"] = item.get("cover_letter", "")
+                    total += 1
+        except json.JSONDecodeError as e:
+            errors.append(f"{label} JSON error: {e}")
+        except Exception as exc:
+            errors.append(f"{label} error: {exc}")
+
+    note = f"Cover letters generated for {total} job(s) ({len(career)} career / {len(bridge)} bridge)."
+    if errors:
+        note += f" ERRORS: {'; '.join(errors)}"
+    return {"ok": True, "tool": "generate_cover_letters", "note": note}
 
 
 # ------------------------------------------------------------

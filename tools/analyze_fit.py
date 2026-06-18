@@ -19,10 +19,15 @@ from dotenv import load_dotenv
 load_dotenv()
 
 CLAUDE_API_KEY = os.environ.get("CLAUDE_API_KEY", "")
-CLAUDE_MODEL = "claude-sonnet-4-6"
+CLAUDE_MODEL_CAREER = "claude-sonnet-4-6"   # career track — nuanced gap analysis
+CLAUDE_MODEL_BRIDGE = "claude-haiku-4-5-20251001"  # bridge track — straightforward fit
 CLAUDE_URL = "https://api.anthropic.com/v1/messages"
 
-TOP_N = 7  # max jobs to send to Claude per run (cost control)
+CAREER_TRACKS = {"LoadRunner / Performance", "AI Hybrid"}
+BRIDGE_TRACKS  = {"QA / Test Engineering", "COBOL / Mainframe"}
+
+TOP_N_CAREER = 7   # career jobs to analyze per run
+TOP_N_BRIDGE = 5   # bridge jobs to analyze per run
 
 _SYSTEM = """You evaluate job fit for Hans Richardson, a Senior Performance Engineer pivoting to AI.
 
@@ -97,22 +102,11 @@ def _strip_fences(text: str) -> str:
     return t
 
 
-def analyze_fit(state=None, top_n: int = TOP_N) -> dict:
+def _call_fit(jobs: list, model: str) -> list:
     """
-    Call Claude to tier the top-scored jobs and flag the notable gap per job.
-    Annotates each job in state.jobs[:top_n] with fit_tier, fit_reason, fit_gap.
-    Returns a result dict the agent loop can log.
+    Call Claude to tier a list of jobs. Returns list of assessment dicts.
+    Jobs are passed with a local 1-based index; caller maps back to state.jobs.
     """
-    if state is None or not getattr(state, "jobs", None):
-        return {"ok": True, "tool": "analyze_fit", "note": "No jobs to analyze."}
-
-    if not CLAUDE_API_KEY:
-        return {"ok": False, "tool": "analyze_fit",
-                "note": "No CLAUDE_API_KEY — fit analysis skipped."}
-
-    jobs = state.jobs[:top_n]
-
-    # Compact job summaries — enough for fit scoring, not full descriptions
     job_lines = []
     for i, job in enumerate(jobs, 1):
         desc = (job.get("description") or "")[:400]
@@ -123,52 +117,78 @@ def analyze_fit(state=None, top_n: int = TOP_N) -> dict:
         )
     prompt = "\n\n".join(job_lines)
 
-    try:
-        resp = requests.post(
-            CLAUDE_URL,
-            headers={
-                "x-api-key": CLAUDE_API_KEY,
-                "anthropic-version": "2023-06-01",
-                "content-type": "application/json",
-            },
-            json={
-                "model": CLAUDE_MODEL,
-                "max_tokens": 800,
-                "system": _SYSTEM,
-                "messages": [{"role": "user", "content": prompt}],
-            },
-            timeout=45,
-        )
+    resp = requests.post(
+        CLAUDE_URL,
+        headers={
+            "x-api-key": CLAUDE_API_KEY,
+            "anthropic-version": "2023-06-01",
+            "content-type": "application/json",
+        },
+        json={
+            "model": model,
+            "max_tokens": 800,
+            "system": _SYSTEM,
+            "messages": [{"role": "user", "content": prompt}],
+        },
+        timeout=45,
+    )
 
-        if resp.status_code != 200:
-            return {"ok": False, "tool": "analyze_fit",
-                    "note": f"API error {resp.status_code} — fit analysis skipped."}
+    if resp.status_code != 200:
+        raise RuntimeError(f"API error {resp.status_code}: {resp.text[:120]}")
 
-        raw = resp.json()["content"][0]["text"]
-        assessments = json.loads(_strip_fences(raw))
+    raw = resp.json()["content"][0]["text"]
+    return json.loads(_strip_fences(raw))
 
-        if not isinstance(assessments, list):
-            return {"ok": False, "tool": "analyze_fit",
-                    "note": "Unexpected response shape — fit analysis skipped."}
 
-        # Annotate jobs in-place (1-based index from Claude → 0-based)
-        for item in assessments:
-            idx = int(item.get("index", 0)) - 1
-            if 0 <= idx < len(jobs):
-                jobs[idx]["fit_tier"] = item.get("fit_tier", "?")
-                jobs[idx]["fit_reason"] = item.get("reason", "")
-                jobs[idx]["fit_gap"] = item.get("gap")
+def analyze_fit(state=None) -> dict:
+    """
+    Call Claude to tier jobs and flag the notable gap per job.
+    Career tracks (LoadRunner/Performance, AI Hybrid) use Sonnet.
+    Bridge tracks (QA/Testing, COBOL) use Haiku — simpler fit, lower cost.
+    Annotates each job in-place with fit_tier, fit_reason, fit_gap.
+    """
+    if state is None or not getattr(state, "jobs", None):
+        return {"ok": True, "tool": "analyze_fit", "note": "No jobs to analyze."}
 
-        tiers = [j.get("fit_tier", "?") for j in jobs]
-        note = f"Fit analysis done for {len(jobs)} jobs: {', '.join(tiers)}"
-        return {"ok": True, "tool": "analyze_fit", "note": note}
-
-    except json.JSONDecodeError:
+    if not CLAUDE_API_KEY:
         return {"ok": False, "tool": "analyze_fit",
-                "note": "Claude returned non-JSON — fit analysis skipped."}
-    except Exception as exc:
-        return {"ok": False, "tool": "analyze_fit",
-                "note": f"analyze_fit error: {exc} — skipped."}
+                "note": "No CLAUDE_API_KEY — fit analysis skipped."}
+
+    # Split into career and bridge pools
+    career_jobs = [j for j in state.jobs if j.get("track", "") in CAREER_TRACKS][:TOP_N_CAREER]
+    bridge_jobs  = [j for j in state.jobs if j.get("track", "") in BRIDGE_TRACKS][:TOP_N_BRIDGE]
+
+    tiers = []
+    errors = []
+
+    for pool, model, label in [
+        (career_jobs, CLAUDE_MODEL_CAREER, "career"),
+        (bridge_jobs,  CLAUDE_MODEL_BRIDGE, "bridge"),
+    ]:
+        if not pool:
+            continue
+        try:
+            assessments = _call_fit(pool, model)
+            for item in assessments:
+                idx = int(item.get("index", 0)) - 1
+                if 0 <= idx < len(pool):
+                    pool[idx]["fit_tier"]    = item.get("fit_tier", "?")
+                    pool[idx]["fit_reason"]  = item.get("reason", "")
+                    pool[idx]["fit_gap"]     = item.get("gap")
+                    pool[idx]["fit_track_type"] = label
+                    tiers.append(item.get("fit_tier", "?"))
+        except json.JSONDecodeError as e:
+            errors.append(f"{label} JSON error: {e}")
+        except Exception as exc:
+            errors.append(f"{label} error: {exc}")
+
+    analyzed = len(career_jobs) + len(bridge_jobs)
+    note = f"Fit analysis done for {analyzed} jobs ({len(career_jobs)} career / {len(bridge_jobs)} bridge)"
+    if tiers:
+        note += f": {', '.join(tiers)}"
+    if errors:
+        note += f" | ERRORS: {'; '.join(errors)}"
+    return {"ok": True, "tool": "analyze_fit", "note": note}
 
 
 # ------------------------------------------------------------
