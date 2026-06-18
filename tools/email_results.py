@@ -241,9 +241,11 @@ def email_results(state=None) -> dict:
         from analyze_fit import analyze_fit
         from cover_letter import generate_cover_letters
 
-    # Auto-score if the planner skipped it (all scores are 0 or missing)
+    # Auto-score if the planner skipped it (all scores are 0 or missing).
+    # Use min_score=0 so jobs with no keyword matches still pass — they'll
+    # be graded by analyze_fit and filtered by fit_tier instead.
     if all(j.get("score", 0) == 0 for j in state.jobs):
-        score_results(state)
+        score_results(state, min_score=0)
 
     # Auto-analyze if fit tiers are absent
     if not any(j.get("fit_tier") for j in state.jobs):

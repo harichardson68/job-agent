@@ -45,6 +45,9 @@ LOADRUNNER_PRIORITY = [
 AI_TITLE_PRIORITY = [
     "ai systems", "agent engineer", "llm platform", "ai engineer",
     "ai workflow", "ai automation", "agentic",
+    "ai platform", "ml engineer", "mlops engineer", "mlops",
+    "machine learning engineer", "ai/ml", "genai engineer",
+    "generative ai", "llm engineer", "ai developer",
 ]
 PERF_HIGH = [
     "performance engineer", "performance testing", "performance test",
@@ -53,6 +56,8 @@ PERF_HIGH = [
 AI_HIGH = [
     "machine learning", "llm", "rag", "generative ai", "langchain",
     "langgraph", "llamaindex", "prompt engineering", "vector database",
+    "openai", "anthropic", "genai", "ai/ml", "mlops", "model serving",
+    "inference", "foundation model", "large language model",
 ]
 PERF_BONUS = [
     "appdynamics", "dynatrace", "splunk", "grafana", "prometheus",
