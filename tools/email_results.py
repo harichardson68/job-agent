@@ -15,11 +15,50 @@ Uses the same Gmail credentials as job_search.py:
 """
 
 import os
+import json
 import smtplib
 from datetime import datetime
 from email.mime.multipart import MIMEMultipart
 from email.mime.text import MIMEText
 from dotenv import load_dotenv
+
+_DECISIONS_PATH = r"C:\Users\haric\Jobsearch\job_decisions.json"
+
+
+def _mark_seen(jobs: list) -> None:
+    """Append emailed job URLs to job_decisions.json so future runs skip them."""
+    if not jobs:
+        return
+    try:
+        try:
+            with open(_DECISIONS_PATH, "r", encoding="utf-8") as f:
+                data = json.load(f)
+            if not isinstance(data, dict):
+                data = {}
+        except (FileNotFoundError, json.JSONDecodeError):
+            data = {}
+
+        today = datetime.now().strftime("%Y-%m-%d")
+        records = data.get(today, [])
+        existing_urls = {r.get("url") for r in records if isinstance(r, dict)}
+
+        for job in jobs:
+            url = (job.get("url") or "").strip()
+            if url and url not in existing_urls:
+                records.append({
+                    "url":     url,
+                    "title":   job.get("title", ""),
+                    "company": job.get("company", ""),
+                    "track":   job.get("track", ""),
+                    "score":   job.get("score", 0),
+                })
+                existing_urls.add(url)
+
+        data[today] = records
+        with open(_DECISIONS_PATH, "w", encoding="utf-8") as f:
+            json.dump(data, f, indent=2)
+    except Exception:
+        pass  # never crash the email over a decisions write failure
 
 load_dotenv()
 
@@ -214,6 +253,7 @@ def send_digest(jobs: list, goal: str = "", run_note: str = "") -> dict:
             server.login(GMAIL_ADDRESS, GMAIL_APP_PASS)
             server.sendmail(GMAIL_ADDRESS, to_addr, msg.as_string())
 
+        _mark_seen(jobs)
         note = f"Digest sent to {to_addr} — {count} job{'s' if count != 1 else ''}."
         return {"ok": True, "tool": "email_results", "note": note}
 
