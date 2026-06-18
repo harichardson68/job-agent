@@ -237,15 +237,25 @@ def email_results(state=None) -> dict:
     if not any(j.get("fit_tier") for j in state.jobs):
         analyze_fit(state)
 
+    # Drop Weak-tier and hard-dropped jobs before emailing
+    sendable = [j for j in state.jobs
+                if j.get("fit_tier", "") != "Weak"
+                and j.get("score", 0) > -100]
+
     generate_cover_letters(state)
 
-    jobs     = state.jobs
     goal     = getattr(state, "goal", "")
-    analyzed = sum(1 for j in jobs if j.get("fit_tier"))
-    run_note = (f"Fit analysis shown for top {analyzed} matches; "
-                f"remaining ranked by score.") if analyzed else ""
+    total    = len(state.jobs)
+    dropped  = total - len(sendable)
+    analyzed = sum(1 for j in sendable if j.get("fit_tier"))
+    run_note_parts = []
+    if analyzed:
+        run_note_parts.append(f"Fit analysis shown for top {analyzed} matches.")
+    if dropped:
+        run_note_parts.append(f"{dropped} Weak/hard-drop job(s) filtered out.")
+    run_note = "  ".join(run_note_parts)
 
-    return send_digest(jobs, goal=goal, run_note=run_note)
+    return send_digest(sendable, goal=goal, run_note=run_note)
 
 
 # ------------------------------------------------------------

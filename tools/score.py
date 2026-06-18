@@ -148,18 +148,27 @@ def _parse_salary(text: str):
     return None, None
 
 
+_BRIDGE_SENIOR_TITLE = ["staff", "principal", "director", "vp", "head of", "distinguished",
+                        "chief", "fellow"]
+
 def ai_seniority_drop(title: str, track: str) -> bool:
     """
-    Return True when the job should be hard-dropped due to AI-track
-    overseniority. Title-only match; never fires on performance track.
+    Return True when the job should be hard-dropped due to overseniority.
+    AI Hybrid: drops staff/principal/lead/director (Hans is early on AI track).
+    Bridge tracks: drops staff/principal/director and above (bridge = mid-level fill).
+    Never fires on LoadRunner / Performance track.
     """
-    if track != "AI Hybrid":
+    if "Performance" in track or "LoadRunner" in track:
         return False
     t = title.lower()
-    if any(kw in t for kw in _AI_SENIOR_TITLE):
-        return True
-    if "architect" in t and _AI_ARCH_SIGNAL_RE.search(t):
-        return True
+    if track == "AI Hybrid":
+        if any(kw in t for kw in _AI_SENIOR_TITLE):
+            return True
+        if "architect" in t and _AI_ARCH_SIGNAL_RE.search(t):
+            return True
+    elif track in ("QA / Test Engineering", "COBOL / Mainframe"):
+        if any(kw in t for kw in _BRIDGE_SENIOR_TITLE):
+            return True
     return False
 
 
