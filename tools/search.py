@@ -142,7 +142,12 @@ def classify_location(title: str, desc: str, location: str = "") -> dict:
                 return {"verdict": "remote_us", "keep": True, "note": "US remote."}
             return {"verdict": "reject", "keep": False,
                     "note": "Remote but appears non-US."}
-        # Specific non-remote, non-KC location → onsite somewhere else.
+        # Specific non-remote, non-KC location — but many remote jobs list the
+        # company's physical office as location. Check body text before rejecting.
+        is_foreign = any(s in f"{body} {loc}" for s in NON_US_SIGNALS)
+        if not is_foreign and any(s in body for s in REMOTE_SIGNALS):
+            return {"verdict": "remote_us", "keep": True,
+                    "note": f"Remote signal in description (location {location.strip()[:30]} may be company HQ)."}
         return {"verdict": "reject", "keep": False,
                 "note": f"Onsite outside KC ({location.strip()[:40]})."}
 
