@@ -101,8 +101,23 @@ KC_SIGNALS = [
     "johnson county, ks",
 ]
 
+# Canadian postal code (letter-digit-letter space digit-letter-digit) —
+# this format doesn't exist in US ZIP codes, so it's an unambiguous
+# non-US signal even when no country name appears in the text.
+_CA_POSTAL_RE = re.compile(r"\b[A-Za-z]\d[A-Za-z]\s?\d[A-Za-z]\d\b")
 
-def classify_location(title: str, desc: str, location: str = "") -> dict:
+# Canadian province abbreviations, as a distinct token after a comma
+# (e.g. "North York, ON"). None of these collide with US state codes,
+# so matching is safe without a full word list of province names.
+_CA_PROVINCE_RE = re.compile(r",\s*(on|bc|ab|qc|mb|sk|ns|nb|pe|nl|yt|nt|nu)\b", re.I)
+
+# Non-US Indeed locale subdomains (ph.indeed.com, it.indeed.com, ...).
+# The US site is indeed.com / www.indeed.com with no two-letter country
+# prefix, so any two-letter subdomain means a foreign job board.
+_NON_US_INDEED_RE = re.compile(r"^https?://([a-z]{2})\.indeed\.com", re.I)
+
+
+def classify_location(title: str, desc: str, location: str = "", url: str = "") -> dict:
     """
     Decide whether a posting clears Hans's location rule.
 
@@ -124,6 +139,18 @@ def classify_location(title: str, desc: str, location: str = "") -> dict:
     # KC metro wins immediately — commutable onsite/hybrid is fine.
     if any(s in loc for s in KC_SIGNALS) or any(s in body for s in KC_SIGNALS):
         return {"verdict": "kc_local", "keep": True, "note": "KC-metro commutable."}
+
+    # Hard non-US signals that don't rely on a country name appearing in the
+    # text — a foreign job-board subdomain or a Canadian postal code/province
+    # abbreviation. These override any "remote" mention in the body, since
+    # body text often doesn't name the country at all (e.g. "Ortigas" with
+    # no "Philippines", or "ON" instead of "Ontario").
+    if _NON_US_INDEED_RE.match(url or ""):
+        return {"verdict": "reject", "keep": False,
+                "note": "Non-US Indeed locale (foreign job board)."}
+    if _CA_POSTAL_RE.search(location) or _CA_PROVINCE_RE.search(location):
+        return {"verdict": "reject", "keep": False,
+                "note": f"Canadian location signal ({location.strip()[:40]})."}
 
     # If the location field is specific (non-empty, non-ambiguous), trust it
     # over body-text signals — prevents "Hybrid in Atlanta, GA" + description
@@ -241,7 +268,7 @@ def search_adzuna(query: str, results_per_page: int = 20,
             loc_label = item.get("location", {}).get("display_name", "")
 
             if location_filter:
-                loc = classify_location(title, desc, loc_label)
+                loc = classify_location(title, desc, loc_label, url_job)
                 if not loc["keep"]:
                     filtered_loc += 1
                     continue
@@ -472,7 +499,7 @@ def search_serper(query: str = "", num: int = 20,
                 continue
 
             if location_filter:
-                loc = classify_location(job["title"], job["description"], job["location"])
+                loc = classify_location(job["title"], job["description"], job["location"], job["url"])
                 if not loc["keep"]:
                     filtered_loc += 1
                     continue
@@ -505,16 +532,22 @@ def search_serper(query: str = "", num: int = 20,
 if __name__ == "__main__":
     print("=== Location classifier ===")
     cases = [
-        ("Sr Performance Engineer", "Fully remote role, US-based team", ""),
-        ("LoadRunner Consultant", "Remote position", "Bangalore, India"),
-        ("Performance Test Lead", "Hybrid, 2 days onsite", "Overland Park, KS"),
-        ("QA Engineer", "Onsite required", "Austin, TX"),
-        ("AI Systems Engineer", "Remote within EMEA", ""),
-        ("Perf Engineer", "Onsite", "Lee's Summit, MO"),
-        ("DevOps Engineer", "No location given", ""),
+        ("Sr Performance Engineer", "Fully remote role, US-based team", "", ""),
+        ("LoadRunner Consultant", "Remote position", "Bangalore, India", ""),
+        ("Performance Test Lead", "Hybrid, 2 days onsite", "Overland Park, KS", ""),
+        ("QA Engineer", "Onsite required", "Austin, TX", ""),
+        ("AI Systems Engineer", "Remote within EMEA", "", ""),
+        ("Perf Engineer", "Onsite", "Lee's Summit, MO", ""),
+        ("DevOps Engineer", "No location given", "", ""),
+        # Regression cases: foreign postings that slipped through before the
+        # Indeed-locale / Canadian-postal-code checks were added.
+        ("Senior SQA Engineer", "Hybrid-remote role", "Ortigas",
+         "https://ph.indeed.com/viewjob?jk=abc"),
+        ("Software Engineer (QA)", "Hybrid onsite", "North York, ON M3C 1Z3",
+         "https://it.indeed.com/viewjob?jk=abc"),
     ]
-    for title, desc, loc in cases:
-        r = classify_location(title, desc, loc)
+    for title, desc, loc, url in cases:
+        r = classify_location(title, desc, loc, url)
         flag = "KEEP" if r["keep"] else "DROP"
         print(f"  [{flag}] {r['verdict']:10} | {title[:28]:28} | {r['note']}")
 
