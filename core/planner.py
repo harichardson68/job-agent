@@ -83,17 +83,61 @@ Rules:
 
 
 def _strip_fences(text: str) -> str:
-    """Strip markdown fences and any leading prose before the JSON object."""
+    """Extract the JSON object from the response, stripping fences and prose."""
     t = text.strip()
     if t.startswith("```"):
         t = t.split("\n", 1)[-1] if "\n" in t else t
         t = t.replace("```json", "").replace("```", "").strip()
-    # Model sometimes adds a sentence before the JSON — find the first {
-    if not t.startswith("{"):
-        idx = t.find("{")
-        if idx != -1:
-            t = t[idx:]
+    # Find the first { and last } to extract just the JSON object,
+    # handling cases where the model adds prose before or after.
+    start = t.find("{")
+    end   = t.rfind("}")
+    if start != -1 and end != -1 and end > start:
+        t = t[start:end + 1]
     return t
+
+
+def _parse_decision(raw: str):
+    """Try to parse a JSON decision from raw planner output. Returns dict or None."""
+    try:
+        return json.loads(_strip_fences(raw))
+    except (json.JSONDecodeError, ValueError):
+        return None
+
+
+def _retry_parse(api_key: str, system: str, user_msg: str,
+                 bad_raw: str, model: str):
+    """
+    One retry when the first response wasn't valid JSON.
+    Feeds the bad response back and insists on JSON only.
+    Returns dict or None.
+    """
+    retry_msg = (
+        f"{user_msg}\n\n"
+        f"Your previous response was not valid JSON:\n{bad_raw[:400]}\n\n"
+        "Return ONLY the JSON object — no prose, no markdown, no explanation."
+    )
+    try:
+        resp = requests.post(
+            CLAUDE_URL,
+            headers={
+                "x-api-key": api_key,
+                "anthropic-version": "2023-06-01",
+                "content-type": "application/json",
+            },
+            json={
+                "model": model,
+                "max_tokens": CLAUDE_MAX_TOKENS,
+                "system": system,
+                "messages": [{"role": "user", "content": retry_msg}],
+            },
+            timeout=30,
+        )
+        if resp.status_code != 200:
+            return None
+        return _parse_decision(resp.json()["content"][0]["text"])
+    except Exception:
+        return None
 
 
 def plan_next_action(state, tool_menu: str, model: str = None) -> dict:
@@ -140,7 +184,14 @@ def plan_next_action(state, tool_menu: str, model: str = None) -> dict:
                     "reasoning": f"Planner API error {resp.status_code}; stopping safely."}
 
         raw = resp.json()["content"][0]["text"]
-        decision = json.loads(_strip_fences(raw))
+        decision = _parse_decision(raw)
+        if decision is None:
+            # One retry with a blunter instruction before giving up.
+            decision = _retry_parse(CLAUDE_API_KEY, system, user_msg, raw,
+                                    model or CLAUDE_MODEL)
+        if decision is None:
+            return {"tool": "stop", "params": {},
+                    "reasoning": "Planner returned non-JSON after retry; stopping safely."}
 
         # Validate shape — fail safe if malformed.
         if not isinstance(decision, dict) or "tool" not in decision:
@@ -151,9 +202,6 @@ def plan_next_action(state, tool_menu: str, model: str = None) -> dict:
         decision.setdefault("reasoning", "(no reasoning provided)")
         return decision
 
-    except json.JSONDecodeError:
-        return {"tool": "stop", "params": {},
-                "reasoning": "Planner returned non-JSON; stopping safely."}
     except Exception as e:
         return {"tool": "stop", "params": {},
                 "reasoning": f"Planner exception: {e}; stopping safely."}
