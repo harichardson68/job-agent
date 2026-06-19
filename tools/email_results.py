@@ -68,6 +68,10 @@ EMAIL_TO       = os.environ.get("EMAIL_TO", GMAIL_ADDRESS)
 
 _CAREER_TRACKS = {"LoadRunner / Performance", "AI Hybrid"}
 
+# Same decisions form used by the legacy job_search.py pipeline — keeps both
+# tools writing decisions to one place instead of forking the tracker.
+_DECISIONS_FORM_URL = "https://docs.google.com/forms/d/1gLcCAhFvOpDWFgCGbu1r9Xubl9o7RVGQbyHwWYJPHIw/viewform"
+
 # Fit tier → badge colour
 _TIER_COLORS = {
     "Excellent": ("#1b5e20", "#e8f5e9"),
@@ -219,6 +223,18 @@ padding:16px;margin-bottom:28px;">"""
             for i, job in enumerate(bridge_jobs, 1):
                 html += _job_card(i, job, accent_color="#4a7c59")
             html += "</div>"
+
+    if count:
+        html += f"""
+<div style="background:#eaf3ff;border:1px solid #b5d4f4;border-radius:8px;padding:14px 18px;margin:16px 0 20px;">
+  <p style="margin:0 0 10px;font-weight:bold;color:#1a3a5c;font-size:13px;">SUBMIT YOUR DECISIONS</p>
+  <p style="margin:0 0 12px;">
+    <a href="{_DECISIONS_FORM_URL}" style="background:#1a3a5c;color:#fff;padding:10px 20px;border-radius:4px;text-decoration:none;font-size:13px;font-weight:bold;">Submit Job Decisions</a>
+  </p>
+  <p style="margin:8px 0 6px;font-size:12px;color:#555;">Click the button above anytime before midnight to submit your decisions. You can submit one job at a time or all at once.</p>
+  <p style="margin:6px 0 4px;font-size:12px;color:#888;"><strong>Decision options:</strong> Applied &nbsp;|&nbsp; Bad Link &nbsp;|&nbsp; Too Senior &nbsp;|&nbsp; Salary Too Low &nbsp;|&nbsp; Not Interested &nbsp;|&nbsp; Already Seen &nbsp;|&nbsp; Search Page &nbsp;|&nbsp; Not in United States &nbsp;|&nbsp; Other</p>
+  <p style="margin:4px 0 0;font-size:11px;color:#aaa;"><em>Unanswered jobs are treated as neutral — no action taken.</em></p>
+</div>"""
 
     html += "\n</body></html>"
 
