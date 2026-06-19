@@ -234,14 +234,17 @@ def _is_aggregator(url: str) -> bool:
 
 def _dedup(jobs: list[dict], seen_urls: set, seen_keys: set) -> tuple[list, dict]:
     """
-    Two-layer dedup:
-      - across-run: drop if url already in seen_urls (job_decisions.json)
+    Three-layer dedup:
+      - across-run, exact: drop if url already in seen_urls (job_decisions.json)
+      - across-run, repost: drop if (company, title) matches a prior decision
+        even under a NEW url — job boards reissue the same listing with a
+        refreshed URL, which exact-url dedup alone would let back in
       - cross-source/in-run: collapse same company + matching title
         (uses _titles_match to handle trailing junk like '- ONLY W2')
     Returns (kept_jobs, stats). Kept jobs gain a 'seen_on' list of sources.
     """
     kept = []
-    stats = {"already_seen": 0, "merged_dupes": 0}
+    stats = {"already_seen": 0, "merged_dupes": 0, "repost_dropped": 0}
 
     for job in jobs:
         url = (job.get("url") or "").strip()
@@ -252,6 +255,14 @@ def _dedup(jobs: list[dict], seen_urls: set, seen_keys: set) -> tuple[list, dict
         if url and url in seen_urls:
             stats["already_seen"] += 1
             continue
+
+        # across-run: same company + matching title decided on before, just
+        # under a different (reissued) URL. Skip "n/a"/blank companies —
+        # too generic to fuzzy-match safely against unrelated postings.
+        if company and company != "n/a":
+            if any(c == company and _titles_match(t, norm) for c, t in seen_keys):
+                stats["repost_dropped"] += 1
+                continue
 
         # cross-source / in-run duplicate: same company + matching title
         merged = False
@@ -275,8 +286,6 @@ def _dedup(jobs: list[dict], seen_urls: set, seen_keys: set) -> tuple[list, dict
         job["_company"] = company             # internal helper fields
         job["_norm"] = norm
         kept.append(job)
-        if url:
-            seen_keys.add(url)
 
     # strip internal helper fields before returning
     for j in kept:
@@ -388,24 +397,41 @@ def _score_one(title: str, desc: str) -> tuple[int, list, str]:
     return score, sorted(set(matched)), track
 
 
+def _load_decision_records() -> list:
+    """Load all historical decision records from job_decisions.json, regardless
+    of which on-disk shape the file is in (list / {"decisions": [...]} / date-keyed)."""
+    try:
+        with open(DECISIONS_PATH, "r", encoding="utf-8") as f:
+            data = json.load(f)
+        if isinstance(data, list):
+            return data
+        if "decisions" in data:
+            return data["decisions"]
+        # date-keyed format: {"2026-04-23": [{...}, ...], ...}
+        return [r for v in data.values() if isinstance(v, list) for r in v]
+    except Exception:
+        return []   # no file yet (or unreadable) -> nothing seen before
+
+
 def _load_seen_urls() -> set:
     """Load URLs already decided on, from job_decisions.json (across-run dedup)."""
-    path = DECISIONS_PATH
-    try:
-        with open(path, "r", encoding="utf-8") as f:
-            data = json.load(f)
-        # job_decisions.json may be: a list of records, a dict with a
-        # "decisions" key, or a dict keyed by date strings (each value a list)
-        if isinstance(data, list):
-            records = data
-        elif "decisions" in data:
-            records = data["decisions"]
-        else:
-            # date-keyed format: {"2026-04-23": [{...}, ...], ...}
-            records = [r for v in data.values() if isinstance(v, list) for r in v]
-        return {r.get("url") for r in records if isinstance(r, dict) and r.get("url")}
-    except Exception:
-        return set()   # no file yet (or unreadable) -> nothing seen before
+    records = _load_decision_records()
+    return {r.get("url") for r in records if isinstance(r, dict) and r.get("url")}
+
+
+def _load_seen_keys() -> set:
+    """Load (company, normalized-title) pairs from job_decisions.json so a
+    reposted listing (same job, new URL) is still caught as a duplicate."""
+    records = _load_decision_records()
+    keys = set()
+    for r in records:
+        if not isinstance(r, dict):
+            continue
+        company = (r.get("company") or "").strip().lower()
+        if not company or company == "n/a":
+            continue
+        keys.add((company, _norm_title(r.get("title", ""))))
+    return keys
 
 
 def score_results(state=None, min_score: int = 1) -> dict:
@@ -423,9 +449,10 @@ def score_results(state=None, min_score: int = 1) -> dict:
 
     raw = state.jobs
     seen_urls = _load_seen_urls()
+    seen_keys = _load_seen_keys()
 
     # 1. DEDUP
-    deduped, dstats = _dedup(raw, seen_urls, set())
+    deduped, dstats = _dedup(raw, seen_urls, seen_keys)
 
     # 2. SCORE + 3. SALARY
     scored = []
@@ -474,6 +501,7 @@ def score_results(state=None, min_score: int = 1) -> dict:
 
     note = (f"{len(scored)} ranked "
             f"(seen-before {dstats['already_seen']}, "
+            f"reposts dropped {dstats['repost_dropped']}, "
             f"merged {dstats['merged_dupes']}, "
             f"ai-senior dropped {ai_senior_dropped}, "
             f"low-score dropped {dropped_low})")

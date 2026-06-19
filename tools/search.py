@@ -94,9 +94,9 @@ NON_US_SIGNALS = [
 # KC-metro commutable signals (both KS and MO sides, ~30 min of Lee's Summit).
 KC_SIGNALS = [
     "kansas city", "lee's summit", "lees summit", "overland park",
-    "olathe", "lenexa", "shawnee", "leawood", "mission, ks",
-    "independence, mo", "blue springs", "raytown", "grandview",
-    "north kansas city", "liberty, mo", "gladstone", "merriam",
+    "olathe", "lenexa", "shawnee, ks", "shawnee mission", "leawood", "mission, ks",
+    "independence, mo", "blue springs", "raytown", "grandview, mo",
+    "north kansas city", "liberty, mo", "gladstone, mo", "merriam",
     "prairie village", "kcmo", "kck", " kc ", "jackson county, mo",
     "johnson county, ks",
 ]
