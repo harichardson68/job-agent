@@ -22,8 +22,12 @@ import os
 import re
 import json
 
-# Real decisions history (across-run dedup source)
-DECISIONS_PATH = r"C:\Users\haric\Jobsearch\job_decisions.json"
+# Real decisions history (across-run dedup source). Defaults to Hans's local
+# path; overridden via env var when running headless (e.g. GitHub Actions,
+# where C:\Users\haric doesn't exist and the file lives in a checked-out repo).
+DECISIONS_PATH = os.environ.get(
+    "DECISIONS_PATH", r"C:\Users\haric\Jobsearch\job_decisions.json"
+)
 
 # Salary logic from the config we built.
 try:

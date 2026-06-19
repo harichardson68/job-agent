@@ -22,7 +22,9 @@ from email.mime.multipart import MIMEMultipart
 from email.mime.text import MIMEText
 from dotenv import load_dotenv
 
-_DECISIONS_PATH = r"C:\Users\haric\Jobsearch\job_decisions.json"
+_DECISIONS_PATH = os.environ.get(
+    "DECISIONS_PATH", r"C:\Users\haric\Jobsearch\job_decisions.json"
+)
 
 
 def _mark_seen(jobs: list) -> None:

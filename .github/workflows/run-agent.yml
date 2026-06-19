@@ -1,0 +1,52 @@
+name: Run Job Agent
+
+on:
+  workflow_dispatch:        # manual trigger (e.g. from GitHub mobile app)
+  schedule:
+    - cron: "0 12 * * *"    # ~7:00 AM Central (UTC-5); adjust if DST shifts it
+
+jobs:
+  run-agent:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout job-agent
+        uses: actions/checkout@v4
+
+      # job_decisions.json (cross-run/cross-day dedup history) lives in a
+      # separate repo used by the legacy local pipeline. Check it out so
+      # this run sees the same history and can write new decisions back.
+      - name: Checkout decisions history (job-search-hans)
+        uses: actions/checkout@v4
+        with:
+          repository: harichardson68/job-search-hans
+          token: ${{ secrets.JOBSEARCH_PAT }}
+          path: jobsearch-data
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+
+      - name: Install dependencies
+        run: python -m pip install -r requirements.txt
+
+      - name: Run agent
+        env:
+          CLAUDE_API_KEY: ${{ secrets.CLAUDE_API_KEY }}
+          ADZUNA_APP_ID: ${{ secrets.ADZUNA_APP_ID }}
+          ADZUNA_APP_KEY: ${{ secrets.ADZUNA_APP_KEY }}
+          SERPER_API_KEY: ${{ secrets.SERPER_API_KEY }}
+          GMAIL_ADDRESS: ${{ secrets.GMAIL_ADDRESS }}
+          GMAIL_APP_PASS: ${{ secrets.GMAIL_APP_PASS }}
+          EMAIL_TO: ${{ secrets.EMAIL_TO }}
+          DECISIONS_PATH: ${{ github.workspace }}/jobsearch-data/job_decisions.json
+        run: python agent.py
+
+      - name: Commit updated decisions history
+        working-directory: jobsearch-data
+        run: |
+          git config user.name "job-agent-bot"
+          git config user.email "actions@users.noreply.github.com"
+          git add job_decisions.json
+          git diff --cached --quiet || git commit -m "Agent run $(date -u +%Y-%m-%d) — update job decisions history"
+          git push
