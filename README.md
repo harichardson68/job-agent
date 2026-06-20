@@ -174,12 +174,15 @@ VM:
    local — sees today's decisions, regardless of whether the email send
    itself succeeded.
 
-**Known open risk:** because both a local run and the scheduled cloud run can
-write to the same history file, running both inside the same window risks a
-lost update on whichever pushes second. Mitigated for now by keeping the
-scheduled run at a fixed early-morning hour and avoiding manual local runs
-during it; a real fix (pull-then-merge-then-push, or a small server-side
-store) is on the roadmap.
+**Concurrent-write handling:** both a local run and the scheduled cloud run
+write to the same history file, so `agent.py` pulls that repo before reading
+`job_decisions.json` and pushes its own updates after — and if the push is
+rejected because the other run committed in between, it pulls once and
+retries rather than force-pushing or silently dropping the write
+(`core/decisions_sync.py`). This closes the *sequential* drift case (one run
+finishing before the other starts). True same-instant concurrent writes are
+still a narrow remaining edge — the retry handles one collision, not an
+unbounded race — but that's a much smaller window than before.
 
 ## Status & roadmap
 
@@ -190,10 +193,9 @@ mode, graceful failure handling, scheduled cloud execution via GitHub Actions
 (runs daily without a laptop on; decisions persisted cross-repo, independent
 of email delivery outcome).
 
-**Next:** harden the cross-repo decisions write against concurrent local +
-cloud runs (pull-then-merge-then-push); an outcome-driven learning loop where 
-logged decisions feed scoring refinements a human approves (deliberately 
-*not* unsupervised self-modification — human in the loop by design).
+**Next:** an outcome-driven learning loop where logged decisions feed scoring
+refinements a human approves (deliberately *not* unsupervised
+self-modification — human in the loop by design).
 
 ---
 
