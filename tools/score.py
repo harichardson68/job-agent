@@ -191,6 +191,27 @@ def _norm_title(title: str) -> str:
     return t
 
 
+_COMPANY_SUFFIX_RE = re.compile(
+    r"\b(incorporated|inc|llc|corporation|corp|company|co|limited|ltd|"
+    r"plc|llp|lp|pllc|pc)\b",
+    re.I,
+)
+
+
+def _norm_company(company: str) -> str:
+    """Normalize a company name for dedup matching: lowercase, strip
+    punctuation and common legal-entity suffixes (Inc, LLC, Corp,
+    Corporation...), squeeze whitespace. Without this, 'Acme Corp' /
+    'Acme Corp.' / 'Acme Corporation' from three different sources are
+    treated as three different companies and the same job shows up
+    three times — confirmed happening in practice, not theoretical."""
+    c = company.lower()
+    c = re.sub(r"[^a-z0-9\s]", " ", c)      # strip punctuation
+    c = _COMPANY_SUFFIX_RE.sub(" ", c)        # strip legal-entity suffixes
+    c = re.sub(r"\s+", " ", c).strip()
+    return c
+
+
 def _titles_match(a: str, b: str) -> bool:
     """
     Fuzzy-ish title match for dedup. Real postings tack junk onto the
@@ -252,7 +273,7 @@ def _dedup(jobs: list[dict], seen_urls: set, seen_keys: set) -> tuple[list, dict
 
     for job in jobs:
         url = (job.get("url") or "").strip()
-        company = (job.get("company") or "").strip().lower()
+        company = _norm_company(job.get("company") or "")
         norm = _norm_title(job.get("title", ""))
 
         # across-run: seen in a prior run
@@ -263,7 +284,7 @@ def _dedup(jobs: list[dict], seen_urls: set, seen_keys: set) -> tuple[list, dict
         # across-run: same company + matching title decided on before, just
         # under a different (reissued) URL. Skip "n/a"/blank companies —
         # too generic to fuzzy-match safely against unrelated postings.
-        if company and company != "n/a":
+        if company and company != "n a":
             if any(c == company and _titles_match(t, norm) for c, t in seen_keys):
                 stats["repost_dropped"] += 1
                 continue
@@ -431,8 +452,8 @@ def _load_seen_keys() -> set:
     for r in records:
         if not isinstance(r, dict):
             continue
-        company = (r.get("company") or "").strip().lower()
-        if not company or company == "n/a":
+        company = _norm_company(r.get("company") or "")
+        if not company or company == "n a":
             continue
         keys.add((company, _norm_title(r.get("title", ""))))
     return keys

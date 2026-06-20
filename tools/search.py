@@ -173,7 +173,17 @@ def classify_location(title: str, desc: str, location: str = "", url: str = "") 
             return {"verdict": "reject", "keep": False,
                     "note": "Remote but appears non-US."}
         # Specific non-remote, non-KC location — but many remote jobs list the
-        # company's physical office as location. Check body text before rejecting.
+        # company's physical office as location. Check body text before
+        # rejecting ONLY if the location field itself doesn't already say
+        # onsite/hybrid outright. An explicit "Hybrid in Atlanta, GA" is
+        # stronger evidence than a stray "remote" mention in the description
+        # (descriptions routinely say things like "remote work is not
+        # available" or "hybrid, remote Fridays" — the bare substring
+        # "remote" appearing there must not flip an explicit non-remote
+        # location to keep, or it violates the invariant stated above).
+        if any(s in loc for s in ONSITE_SIGNALS) or "hybrid" in loc:
+            return {"verdict": "reject", "keep": False,
+                    "note": f"Explicit onsite/hybrid location ({location.strip()[:40]})."}
         is_foreign = any(s in f"{body} {loc}" for s in NON_US_SIGNALS)
         if not is_foreign and any(s in body for s in REMOTE_SIGNALS):
             return {"verdict": "remote_us", "keep": True,
