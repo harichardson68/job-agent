@@ -123,8 +123,10 @@ job-agent/
 Finding jobs is the easy part. Turning a messy pile of duplicates into a clean,
 ranked, honestly-assessed list is where the discipline shows:
 
-- **Deduplication, two layers.** Across runs (jobs already decided on are
-  dropped) and across sources (the same role posted under varying titles —
+- **Deduplication, two layers.** Across runs (every job the agent evaluates —
+  not just the ones that make the final digest — is recorded as seen, so a
+  poor-fit posting doesn't get silently re-fetched and re-billed through fit
+  analysis tomorrow) and across sources (the same role posted under varying titles
   "Agentic AI Engineer" vs "Agentic AI Platform Engineer" — is collapsed via a
   company-gated, ratio-thresholded title match tuned to avoid false merges).
 - **Tiered scoring.** Weighted keyword policy encodes *what matters* as a fixed,
@@ -155,18 +157,43 @@ The agent streams its reasoning trace to the console and saves a full trace to
 the same trace into a chat window.
 
 ---
+## Running it in the cloud (GitHub Actions)
+
+The agent doesn't need my laptop running. A scheduled workflow
+(`.github/workflows/run-agent.yml`) runs it daily on a fresh, disposable Ubuntu
+VM:
+
+1. Checks out this repo's code.
+2. Checks out a second, private repo (`job-search-hans`) that holds
+   `job_decisions.json` — the cross-run dedup history shared with the original
+   pipeline — into a subfolder.
+3. Installs dependencies and runs `agent.py`, with API keys and the Gmail app
+   password injected from GitHub Secrets (never committed to code).
+4. Sends the digest, then commits the updated history back to
+   `job-search-hans` with a repo-scoped token, so tomorrow's run — cloud or
+   local — sees today's decisions, regardless of whether the email send
+   itself succeeded.
+
+**Known open risk:** because both a local run and the scheduled cloud run can
+write to the same history file, running both inside the same window risks a
+lost update on whichever pushes second. Mitigated for now by keeping the
+scheduled run at a fixed early-morning hour and avoiding manual local runs
+during it; a real fix (pull-then-merge-then-push, or a small server-side
+store) is on the roadmap.
 
 ## Status & roadmap
 
 **Working today:** adaptive multi-source search, location filtering, two-layer
 dedup, tiered scoring, LLM fit analysis with gap-flagging, on-demand cover
 letters, HTML email digest, full reasoning-trace observability, dev/prod test
-mode, graceful failure handling.
+mode, graceful failure handling, scheduled cloud execution via GitHub Actions
+(runs daily without a laptop on; decisions persisted cross-repo, independent
+of email delivery outcome).
 
-**Next:** remote/headless execution (cloud-triggered, emails results); an
-outcome-driven learning loop where logged decisions feed scoring refinements a
-human approves (deliberately *not* unsupervised self-modification — human in the
-loop by design).
+**Next:** harden the cross-repo decisions write against concurrent local +
+cloud runs (pull-then-merge-then-push); an outcome-driven learning loop where 
+logged decisions feed scoring refinements a human approves (deliberately 
+*not* unsupervised self-modification — human in the loop by design).
 
 ---
 
