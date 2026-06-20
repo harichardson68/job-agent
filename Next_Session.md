@@ -113,3 +113,5 @@ decisions and emails ranked results with reasoning."
   - max_iterations = 15 placeholder cap. Normal runs finish ~8-11. Fine.
   - job_decisions.json read path points at job-search-hans (wired in
     task 1). Working.
+  - Fixed _mark_seen to record all evaluated jobs, not just sendable, and
+    decoupled it from email-send success — 6/20/26.

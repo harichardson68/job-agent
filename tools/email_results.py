@@ -260,6 +260,11 @@ def send_digest(jobs: list, goal: str = "", run_note: str = "") -> dict:
 
     html = _build_html(jobs, goal=goal, run_note=run_note)
 
+    # Record these decisions now, independent of whether the email below
+    # actually sends — a flaky SMTP send shouldn't cost us tomorrow's
+    # Claude API budget re-evaluating jobs we already decided on today.
+    _mark_seen(jobs)
+
     try:
         msg = MIMEMultipart("alternative")
         msg["Subject"] = subject
@@ -271,13 +276,12 @@ def send_digest(jobs: list, goal: str = "", run_note: str = "") -> dict:
             server.login(GMAIL_ADDRESS, GMAIL_APP_PASS)
             server.sendmail(GMAIL_ADDRESS, to_addr, msg.as_string())
 
-        _mark_seen(jobs)
         note = f"Digest sent to {to_addr} — {count} job{'s' if count != 1 else ''}."
         return {"ok": True, "tool": "email_results", "note": note}
 
     except Exception as e:
         return {"ok": False, "tool": "email_results",
-                "note": f"Email failed: {e}"}
+                "note": f"Email failed: {e}  (decisions were still recorded)"}
 
 
 def email_results(state=None) -> dict:
@@ -316,6 +320,11 @@ def email_results(state=None) -> dict:
                 if j.get("fit_tier", "") != "Weak"
                 and j.get("score", 0) > -100
                 and j.get("track", "") in _VALID_TRACKS]
+
+    # Record every job evaluated this run, not just the ones emailed, so
+    # Weak/dropped jobs don't get re-fetched and re-analyzed (burning
+    # Claude API calls) again tomorrow.
+    _mark_seen(state.jobs)
 
     generate_cover_letters(state)
 
