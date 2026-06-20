@@ -29,11 +29,13 @@ try:
     from core.state import AgentState
     from core.planner import plan_next_action
     from core.logger import RunLogger
+    from core.decisions_sync import pull_before_run, push_after_run
     from tools.registry import build_menu, get_tool, is_valid_tool, TOOLS
 except ImportError:
     from state import AgentState
     from planner import plan_next_action
     from logger import RunLogger
+    from decisions_sync import pull_before_run, push_after_run
     from registry import build_menu, get_tool, is_valid_tool, TOOLS
 
 
@@ -51,6 +53,12 @@ def run_agent(goal: str, max_iterations: int = 15, stream_callback=None,
     """
     state = AgentState(goal=goal, max_iterations=max_iterations)
     log = RunLogger(goal=goal, stream_callback=stream_callback)
+
+    # Pull the shared decisions history before scoring reads it — keeps a
+    # local run in sync with whatever the cloud (GitHub Actions) run last
+    # decided, so dedup doesn't work off a stale snapshot. No-op when the
+    # decisions path isn't a git repo (e.g. already-fresh cloud checkout).
+    pull_before_run()
 
     # Build the active tool set — strip analyze_fit when skip_fit=True so the
     # planner never sees it and can't call it (saves the most expensive call).
@@ -114,6 +122,11 @@ def run_agent(goal: str, max_iterations: int = 15, stream_callback=None,
 
     # Save last run for GUI-triggered email button
     _save_last_run(state)
+
+    # Push any new decisions (emailed job URLs) back so the next run —
+    # local or cloud — sees them. Retries once on a rejected push rather
+    # than failing silently or force-pushing over a concurrent run.
+    push_after_run()
 
     return state
 
