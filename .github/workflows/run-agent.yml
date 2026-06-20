@@ -3,7 +3,9 @@ name: Run Job Agent
 on:
   workflow_dispatch:        # manual trigger (e.g. from GitHub mobile app)
   schedule:
-    - cron: "0 12 * * *"    # ~7:00 AM Central (UTC-5); adjust if DST shifts it
+    - cron: "13 12 * * *"   # ~7:13 AM Central (UTC-5); off the top of the hour
+                            # to dodge GitHub's round-hour scheduling congestion
+                            # (adjust the 12 if DST shifts the offset)
 
 jobs:
   run-agent:
