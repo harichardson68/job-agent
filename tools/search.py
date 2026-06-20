@@ -29,9 +29,12 @@ load_dotenv()
 ADZUNA_APP_ID  = os.environ.get("ADZUNA_APP_ID", "")
 ADZUNA_APP_KEY = os.environ.get("ADZUNA_APP_KEY", "")
 SERPER_API_KEY = os.environ.get("SERPER_API_KEY", "")
+USAJOBS_API_KEY = os.environ.get("USAJOBS_API_KEY", "")
+USAJOBS_EMAIL   = os.environ.get("USAJOBS_EMAIL", "")
 
-ADZUNA_URL = "https://api.adzuna.com/v1/api/jobs/us/search/1"
-SERPER_URL = "https://google.serper.dev/search"
+ADZUNA_URL  = "https://api.adzuna.com/v1/api/jobs/us/search/1"
+SERPER_URL  = "https://google.serper.dev/search"
+USAJOBS_URL = "https://data.usajobs.gov/api/search"
 
 # Location words that the planner might append to a query but that break
 # Adzuna's AND-match (Adzuna requires every query word in the body text,
@@ -78,7 +81,7 @@ _EXPIRED_RE = re.compile(
 _AMBIGUOUS_LOC = re.compile(
     r"^\s*(united\s+states?|u\.?s\.?a?\.?|us\s+remote|remote|work\s+from\s+home|"
     r"wfh|anywhere|virtual|distributed|n/?a|not\s+specified|flexible|nationwide"
-    r"|north\s+america)\s*$",
+    r"|north\s+america|multiple\s+locations)\s*$",
     re.I,
 )
 
@@ -521,6 +524,113 @@ def search_serper(query: str = "", num: int = 20,
             "ok": False, "tool": "search_serper", "query": query,
             "count": 0, "jobs": [],
             "note": f"Serper error: {e}",
+        }
+
+
+def search_usajobs(query: str, results_per_page: int = 20,
+                   location_filter: bool = True) -> dict:
+    """
+    Agent tool: search USAJOBS.gov — the official US federal government
+    job board API. No scraping, no ToS gray area: this is a documented
+    public API (data.usajobs.gov) that just needs a free API key + email
+    in the request headers.
+
+    Most relevant to the COBOL/Mainframe track (federal agencies still run
+    a lot of COBOL), but covers any federal IT/QA/AI role too — the agent
+    decides the query like with the other search tools.
+
+    Location nuance: USAJOBS distinguishes RemoteIndicator (genuinely
+    location-independent — rare) from TeleworkEligible (hybrid, but still
+    tied to a fixed duty station — common). Only RemoteIndicator=True
+    short-circuits straight to "remote_us"; TeleworkEligible alone still
+    goes through the normal classify_location() check against the listed
+    duty station, same as Hans's KC-or-remote rule for every other source.
+
+    Returns the same shape as search_adzuna/search_serper.
+    """
+    if not USAJOBS_API_KEY or not USAJOBS_EMAIL:
+        return {
+            "ok": False, "tool": "search_usajobs", "query": query,
+            "count": 0, "jobs": [],
+            "note": "USAJOBS skipped — USAJOBS_API_KEY/USAJOBS_EMAIL not set in environment.",
+        }
+
+    try:
+        resp = requests.get(
+            USAJOBS_URL,
+            headers={
+                "Authorization-Key": USAJOBS_API_KEY,
+                "User-Agent": USAJOBS_EMAIL,
+                "Host": "data.usajobs.gov",
+            },
+            params={"Keyword": query, "ResultsPerPage": results_per_page},
+            timeout=15,
+        )
+        if resp.status_code != 200:
+            return {
+                "ok": False, "tool": "search_usajobs", "query": query,
+                "count": 0, "jobs": [],
+                "note": f"USAJOBS returned status {resp.status_code}.",
+            }
+
+        items = resp.json().get("SearchResult", {}).get("SearchResultItems", [])
+        jobs = []
+        filtered_loc = 0
+
+        for item in items:
+            d = item.get("MatchedObjectDescriptor", {})
+            details = d.get("UserArea", {}).get("Details", {})
+
+            title    = d.get("PositionTitle", "")
+            company  = d.get("OrganizationName", "") or d.get("DepartmentName", "")
+            apply_uris = d.get("ApplyURI") or []
+            url_job  = d.get("PositionURI", "") or (apply_uris[0] if apply_uris else "")
+            posted   = d.get("PublicationStartDate", "")
+            loc_label = d.get("PositionLocationDisplay", "")
+            desc     = details.get("JobSummary", "") or ""
+
+            remuneration = (d.get("PositionRemuneration") or [{}])[0]
+            sal_low  = remuneration.get("MinimumRange", "")
+            sal_high = remuneration.get("MaximumRange", "")
+            interval = remuneration.get("Description", "")
+            salary = f"${sal_low}-${sal_high} {interval}".strip() if sal_low else ""
+
+            if location_filter:
+                if details.get("RemoteIndicator") is True:
+                    location_note = "US remote (USAJOBS RemoteIndicator)."
+                else:
+                    loc = classify_location(title, desc, loc_label, url_job)
+                    if not loc["keep"]:
+                        filtered_loc += 1
+                        continue
+                    location_note = loc["note"]
+            else:
+                location_note = "location filter off"
+
+            jobs.append({
+                "source": "USAJOBS",
+                "title": title,
+                "company": company,
+                "url": url_job,
+                "posted": posted,
+                "description": desc[:500],
+                "salary": salary,
+                "location": loc_label,
+                "location_note": location_note,
+            })
+
+        note = (f"{len(jobs)} jobs (filtered {filtered_loc} on location)"
+                if location_filter else f"{len(jobs)} jobs")
+        return {
+            "ok": True, "tool": "search_usajobs", "query": query,
+            "count": len(jobs), "jobs": jobs, "note": note,
+        }
+
+    except Exception as e:
+        return {
+            "ok": False, "tool": "search_usajobs", "query": query,
+            "count": 0, "jobs": [],
+            "note": f"USAJOBS error: {e}",
         }
 
 

@@ -23,12 +23,12 @@ know about that tool (the real function, its params, its description).
 # Import the real tool functions.
 # (When run as part of the package: from tools.search import search_adzuna)
 try:
-    from tools.search import search_adzuna, search_serper
+    from tools.search import search_adzuna, search_serper, search_usajobs
     from tools.score import score_results
     from tools.analyze_fit import analyze_fit
     from tools.email_results import email_results
 except ImportError:
-    from search import search_adzuna, search_serper
+    from search import search_adzuna, search_serper, search_usajobs
     from score import score_results
     from analyze_fit import analyze_fit
     from email_results import email_results
@@ -62,6 +62,15 @@ TOOLS = {
         "desc": "Search Google Jobs (via Serper) for a query. Complementary "
                 "source to Adzuna — run both to maximize coverage and trigger "
                 "cross-source dedup.",
+    },
+    "search_usajobs": {
+        "fn": search_usajobs,
+        "params": "query: str",
+        "desc": "Search USAJOBS.gov (official US federal job board API). Best "
+                "for the COBOL/Mainframe track — federal agencies still run a "
+                "lot of legacy COBOL — but covers any federal IT/QA/AI role. "
+                "Yields fewer results than Adzuna/Serper since most federal "
+                "postings are tied to a specific duty station, not fully remote.",
     },
     "score_results": {
         "fn": score_results,

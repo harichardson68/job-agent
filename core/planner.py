@@ -61,7 +61,11 @@ YOUR JOB: given the goal and what has happened so far, decide the SINGLE next ac
 
 PIPELINE — follow this order:
   1. Search each of the 4 tracks (1-2 searches per track is enough; do NOT repeat the
-     same track query more than once — check the history before searching).
+     same track query more than once — check the history before searching). Use
+     search_adzuna and search_serper for all tracks; also try search_usajobs for the
+     COBOL/Mainframe track (federal agencies run a lot of legacy COBOL) — it yields
+     fewer results since most federal jobs aren't fully remote, so don't over-invest
+     in it if it comes back thin.
   2. Once you have jobs from at least 2 tracks (or 8+ jobs total), call score_results.
   3. Call analyze_fit after scoring.
   4. Call email_results to send the digest — this is REQUIRED before stop.
