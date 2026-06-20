@@ -316,7 +316,9 @@ _SERPER_JOB_SITES = (
     "site:indeed.com/viewjob OR "
     "site:jobs.lever.co OR "
     "site:boards.greenhouse.io OR "
-    "site:jobs.ashbyhq.com"
+    "site:jobs.ashbyhq.com OR "
+    "site:myworkdayjobs.com OR "
+    "site:jobs.smartrecruiters.com"
 )
 
 # URL fragments that mark an individual job posting (not a list page)
@@ -326,6 +328,12 @@ _JOB_POST_PATTERNS = [
     "jobs.lever.co/",
     "boards.greenhouse.io/",
     "jobs.ashbyhq.com/",
+    "/job/",                  # Workday's job-vs-listing-page marker. Verified
+                              # against 6 real postings (Accenture, Intel,
+                              # Salesforce, Cloudera, Samsung, Rolls-Royce) —
+                              # job pages always contain "/job/" in the path;
+                              # listing pages never do.
+    "jobs.smartrecruiters.com/",
 ]
 
 # Employment-type / location tags that get appended to job titles on
@@ -430,6 +438,22 @@ def _parse_serper_job(item: dict) -> dict | None:
         elif " at " in title_raw:
             t, c = title_raw.split(" at ", 1)
             title, company = _scrub(t.strip()), _scrub(c.strip())
+    elif "myworkdayjobs.com" in link:
+        # Google's title metadata is just "Job Title - Myworkdayjobs.com" —
+        # no company name in it at all. Company comes from the URL subdomain
+        # instead (e.g. accenture.wd103.myworkdayjobs.com -> "Accenture").
+        title = re.sub(r"\s*-\s*Myworkdayjobs(\.com)?\s*$", "", title_raw, flags=re.I).strip()
+        title = _scrub(title)
+        m = re.search(r"https?://([a-z0-9_-]+)\.wd\d+\.myworkdayjobs\.com", link, flags=re.I)
+        if m:
+            company = m.group(1).replace("-", " ").replace("_", " ").title()
+    elif "jobs.smartrecruiters.com" in link:
+        # "{Company} is looking for a {Job Title} in {Location}" — confirmed
+        # against one live example only, so this may not hold for every
+        # posting's phrasing. Falls back to the raw title if it doesn't match.
+        m = re.match(r"^(.*?)\s+is looking for an?\s+(.*?)\s+in\s+(.*)$", title_raw, flags=re.I)
+        if m:
+            company, title, location = m.group(1).strip(), _scrub(m.group(2).strip()), m.group(3).strip()
 
     # Drop if Google's cached snippet already shows the listing is gone.
     if _EXPIRED_RE.search(snippet) or _EXPIRED_RE.search(title_raw):
