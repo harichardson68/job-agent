@@ -70,7 +70,10 @@ TOOLS = {
                 "for the COBOL/Mainframe track — federal agencies still run a "
                 "lot of legacy COBOL — but covers any federal IT/QA/AI role. "
                 "Yields fewer results than Adzuna/Serper since most federal "
-                "postings are tied to a specific duty station, not fully remote.",
+                "postings are tied to a specific duty station, not fully remote. "
+                "REQUIRED: query (str) — always pass keywords, e.g. {\"query\": "
+                "\"COBOL mainframe developer\"}; calling with no params raises "
+                "a missing-argument error.",
     },
     "score_results": {
         "fn": score_results,
